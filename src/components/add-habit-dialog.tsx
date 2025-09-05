@@ -15,13 +15,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import type { Habit } from '@/lib/types';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Habit name must be at least 2 characters.' }),
   description: z.string().optional(),
   points: z.coerce.number().min(0, { message: 'Points must be a positive number.' }).default(10),
+  penalty: z.coerce.number().min(0, { message: 'Penalty must be a positive number.' }).default(0),
 });
 
 interface AddHabitDialogProps {
@@ -37,6 +38,7 @@ export default function AddHabitDialog({ open, onOpenChange, onHabitAdd }: AddHa
       name: '',
       description: '',
       points: 10,
+      penalty: 0,
     },
   });
 
@@ -89,10 +91,26 @@ export default function AddHabitDialog({ open, onOpenChange, onHabitAdd }: AddHa
                 name="points"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Points</FormLabel>
+                    <FormLabel>Points for Completion</FormLabel>
                     <FormControl>
                       <Input type="number" min="0" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="penalty"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Penalty for Missing (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Points to deduct if this habit is not completed. Set to 0 for no penalty.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

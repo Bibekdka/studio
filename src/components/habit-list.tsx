@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { Habit } from '@/lib/types';
-import { Target } from 'lucide-react';
+import { Target, TrendingDown } from 'lucide-react';
 
 interface HabitListProps {
   habits: Habit[];
@@ -38,14 +38,22 @@ export default function HabitList({ habits, completedHabitIds, onToggleHabit }: 
               className="mt-1 h-5 w-5"
               aria-label={`Mark '${habit.name}' as ${isCompleted ? 'incomplete' : 'complete'}`}
             />
-            <div className="grid gap-1">
+            <div className="grid gap-1 flex-1">
               <label htmlFor={`habit-${habit.id}`} className="font-medium cursor-pointer">
                 {habit.name}
               </label>
               <p className="text-sm text-muted-foreground">{habit.description}</p>
             </div>
-            <div className={`ml-auto font-bold text-sm ${isCompleted ? 'text-primary' : 'text-muted-foreground'}`}>
-              {habit.points} pts
+            <div className="flex flex-col items-end space-y-1 text-sm">
+                <div className={`font-bold ${isCompleted ? 'text-primary' : 'text-muted-foreground'}`}>
+                  +{habit.points} pts
+                </div>
+                {habit.penalty > 0 && (
+                    <div className={`flex items-center gap-1 text-xs ${isCompleted ? 'text-muted-foreground/50' : 'text-destructive/80'}`}>
+                        <TrendingDown className="h-3 w-3" />
+                        <span>{habit.penalty} pts</span>
+                    </div>
+                )}
             </div>
           </div>
         );

@@ -3,6 +3,7 @@ export interface Habit {
   name: string;
   description: string;
   points: number;
+  penalty: number;
 }
 
 export interface HabitLog {

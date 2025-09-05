@@ -6,28 +6,33 @@ import { format } from 'date-fns';
 
 const HABITS_STORAGE_KEY = 'habit-journey-habits';
 const LOGS_STORAGE_KEY = 'habit-journey-logs';
+const TARGET_STORAGE_KEY = 'habit-journey-target';
 
 const getInitialHabits = (): Habit[] => {
   return [
-    { id: '1', name: 'Read for 15 minutes', description: 'Read a book or an article.', points: 10 },
-    { id: '2', name: 'Morning workout', description: 'A 20-minute exercise session.', points: 20 },
-    { id: '3', name: 'Meditate', description: '5 minutes of mindfulness meditation.', points: 15 },
-    { id: '4', name: 'Drink 8 glasses of water', description: 'Stay hydrated throughout the day.', points: 5 },
+    { id: '1', name: 'Read for 15 minutes', description: 'Read a book or an article.', points: 10, penalty: 5 },
+    { id: '2', name: 'Morning workout', description: 'A 20-minute exercise session.', points: 20, penalty: 10 },
+    { id: '3', name: 'Meditate', description: '5 minutes of mindfulness meditation.', points: 15, penalty: 0 },
+    { id: '4', name: 'Drink 8 glasses of water', description: 'Stay hydrated throughout the day.', points: 5, penalty: 0 },
   ];
 };
 
 export function useHabits() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<HabitLog[]>([]);
+  const [monthlyTarget, setMonthlyTarget] = useState<number>(1000);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     try {
       const storedHabits = localStorage.getItem(HABITS_STORAGE_KEY);
       const storedLogs = localStorage.getItem(LOGS_STORAGE_KEY);
+      const storedTarget = localStorage.getItem(TARGET_STORAGE_KEY);
 
       if (storedHabits) {
-        setHabits(JSON.parse(storedHabits));
+        // Migration for habits that don't have a penalty
+        const parsedHabits = JSON.parse(storedHabits).map((h: Habit) => ({ penalty: 0, ...h }));
+        setHabits(parsedHabits);
       } else {
         setHabits(getInitialHabits());
       }
@@ -35,10 +40,15 @@ export function useHabits() {
       if (storedLogs) {
         setLogs(JSON.parse(storedLogs));
       }
+      if (storedTarget) {
+        setMonthlyTarget(JSON.parse(storedTarget));
+      }
+
     } catch (error) {
       console.error("Failed to load data from localStorage", error);
       setHabits(getInitialHabits());
       setLogs([]);
+      setMonthlyTarget(1000);
     }
     setIsLoaded(true);
   }, []);
@@ -62,6 +72,16 @@ export function useHabits() {
       }
     }
   }, [logs, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      try {
+        localStorage.setItem(TARGET_STORAGE_KEY, JSON.stringify(monthlyTarget));
+      } catch (error) {
+        console.error("Failed to save monthly target to localStorage", error);
+      }
+    }
+  }, [monthlyTarget, isLoaded]);
 
   const addHabit = useCallback((habitData: Omit<Habit, 'id'>) => {
     const newHabit: Habit = {
@@ -95,5 +115,5 @@ export function useHabits() {
     });
   }, []);
 
-  return { habits, logs, addHabit, toggleHabit, isLoaded };
+  return { habits, logs, addHabit, toggleHabit, monthlyTarget, setMonthlyTarget, isLoaded };
 }
