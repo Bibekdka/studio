@@ -20,12 +20,14 @@ import { Progress } from '@/components/ui/progress';
 import MilestoneDialog from '@/components/milestone-dialog';
 import type { Habit } from '@/lib/types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
   const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget } = useHabits();
   const [isAddDialogOpen, setAddDialogOpen] = React.useState(false);
   const [isMilestoneOpen, setMilestoneOpen] = React.useState(false);
   const [milestone, setMilestone] = React.useState<number | null>(null);
+  const { toast } = useToast();
 
   const [habitToEdit, setHabitToEdit] = React.useState<Habit | null>(null);
   const [habitToDelete, setHabitToDelete] = React.useState<Habit | null>(null);
@@ -202,6 +204,10 @@ export default function DashboardPage() {
         onHabitAdd={newHabit => {
           addHabit(newHabit);
           setAddDialogOpen(false);
+          toast({
+            title: "Habit Added! ✅",
+            description: `Your new habit "${newHabit.name}" has been successfully created.`,
+          });
         }}
       />
       {habitToEdit && (
