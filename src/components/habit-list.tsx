@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { useSwipeable } from 'react-swipeable';
-import { Checkbox } from '@/components/ui/checkbox';
 import type { Habit, CompletedHabit } from '@/lib/types';
 import { Target, TrendingDown, Check, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -83,16 +82,10 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onDelete }: {
         )}
         style={{ transform: `translateX(${swipeOffset}px)` }}
       >
-        <Checkbox
-          id={`habit-${habit.id}`}
-          checked={isCompleted}
-          aria-label={`'${habit.name}' is ${isCompleted ? 'complete' : 'incomplete'}`}
-          className="mt-1 h-5 w-5 pointer-events-none"
-        />
         <div className="grid gap-1 flex-1">
-          <label htmlFor={`habit-${habit.id}`} className="font-medium">
+          <div className="font-medium">
             {habit.name}
-          </label>
+          </div>
           <p className="text-sm text-muted-foreground">{habit.description}</p>
         </div>
         <div className="flex flex-col items-end space-y-1 text-sm">
