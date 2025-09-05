@@ -3,14 +3,14 @@
 import * as React from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { Habit } from '@/lib/types';
+import type { Habit, CompletedHabit } from '@/lib/types';
 import { Target, TrendingDown, Check, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Confetti from './confetti';
 
 interface HabitListProps {
   habits: Habit[];
-  completedHabitIds: string[];
+  completedHabits: CompletedHabit[];
   onToggleHabit: (habitId: string) => void;
   onEditHabit: (habit: Habit) => void;
   onDeleteHabit: (habit: Habit) => void;
@@ -112,7 +112,7 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onDelete }: {
 }
 
 
-export default function HabitList({ habits, completedHabitIds, onToggleHabit, onEditHabit, onDeleteHabit }: HabitListProps) {
+export default function HabitList({ habits, completedHabits, onToggleHabit, onEditHabit, onDeleteHabit }: HabitListProps) {
   if (habits.length === 0) {
     return (
       <div className="text-center py-10">
@@ -122,6 +122,8 @@ export default function HabitList({ habits, completedHabitIds, onToggleHabit, on
       </div>
     );
   }
+
+  const completedHabitIds = completedHabits.map(c => c.habitId);
 
   return (
     <div className="space-y-4">

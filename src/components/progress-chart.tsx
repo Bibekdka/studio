@@ -4,7 +4,6 @@ import * as React from 'react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { subDays, format } from 'date-fns';
 import type { HabitLog } from '@/lib/types';
-import { ChartTooltipContent } from '@/components/ui/chart';
 
 interface ProgressChartProps {
   logs: HabitLog[];

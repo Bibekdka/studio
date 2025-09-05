@@ -6,7 +6,12 @@ export interface Habit {
   penalty: number;
 }
 
+export interface CompletedHabit {
+  habitId: string;
+  completedAt: string; // ISO timestamp
+}
+
 export interface HabitLog {
   date: string; // YYYY-MM-DD
-  completedHabits: string[]; // array of habit IDs
+  completedHabits: CompletedHabit[];
 }

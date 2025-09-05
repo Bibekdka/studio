@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, Settings } from 'lucide-react';
+import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, Settings, Clock } from 'lucide-react';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
@@ -14,16 +14,15 @@ import HabitList from '@/components/habit-list';
 import MotivationalQuote from '@/components/motivational-quote';
 import ProductivityScore from '@/components/productivity-score';
 import ProgressChart from '@/components/progress-chart';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getMonth, getYear } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getMonth, getYear, parseISO } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import MilestoneDialog from '@/components/milestone-dialog';
-import type { Habit } from '@/lib/types';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import type { Habit, CompletedHabit } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
-  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget } = useHabits();
+  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget } = useHabits();
   const [isAddDialogOpen, setAddDialogOpen] = React.useState(false);
   const [isMilestoneOpen, setMilestoneOpen] = React.useState(false);
   const [milestone, setMilestone] = React.useState<number | null>(null);
@@ -35,6 +34,8 @@ export default function DashboardPage() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayLog = logs.find(log => log.date === today);
   const todaysCompletedHabits = todayLog?.completedHabits || [];
+  const todaysCompletedHabitIds = todaysCompletedHabits.map(c => c.habitId);
+
 
   const currentDate = new Date();
   const monthStart = startOfMonth(currentDate);
@@ -46,7 +47,8 @@ export default function DashboardPage() {
     return getMonth(logDate) === getMonth(currentDate) && getYear(logDate) === getYear(currentDate);
   });
 
-  const calculateScoreForDay = (completedIds: string[]) => {
+  const calculateScoreForDay = (completedHabits: CompletedHabit[]) => {
+    const completedIds = completedHabits.map(c => c.habitId);
     const completedScore = habits
       .filter(h => completedIds.includes(h.id))
       .reduce((sum, h) => sum + h.points, 0);
@@ -75,7 +77,7 @@ export default function DashboardPage() {
         break; // Show one milestone at a time
       }
     }
-  }, [monthlyScore, todaysCompletedHabits, habits, calculateScoreForDay]);
+  }, [monthlyScore, todaysCompletedHabits, habits]);
 
 
   return (
@@ -127,7 +129,7 @@ export default function DashboardPage() {
                   <CardContent>
                     <HabitList
                       habits={habits}
-                      completedHabitIds={todaysCompletedHabits}
+                      completedHabits={todaysCompletedHabits}
                       onToggleHabit={toggleHabit}
                       onEditHabit={setHabitToEdit}
                       onDeleteHabit={setHabitToDelete}
@@ -149,7 +151,7 @@ export default function DashboardPage() {
                   <CardContent>
                     <ProductivityScore
                       habits={habits}
-                      completedHabitIds={todaysCompletedHabits}
+                      completedHabitIds={todaysCompletedHabitIds}
                     />
                   </CardContent>
                 </Card>
@@ -181,15 +183,40 @@ export default function DashboardPage() {
                         const dayString = format(day, 'yyyy-MM-dd');
                         const log = logs.find(l => l.date === dayString);
                         const score = log ? calculateScoreForDay(log.completedHabits) : 0;
+                        const completedHabitDetails = log ? log.completedHabits.map(ch => {
+                            const habit = habits.find(h => h.id === ch.habitId);
+                            return {
+                                name: habit?.name || 'Unknown Habit',
+                                completedAt: ch.completedAt
+                            }
+                        }) : [];
+
                         return (
-                            <div key={dayString} className="flex items-center justify-between rounded-lg border p-3">
-                               <div>
-                                    <p className="font-semibold">{format(day, 'MMMM d, EEE')}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : 'No entries'}
-                                    </p>
+                            <div key={dayString} className="flex flex-col rounded-lg border p-3">
+                               <div className="flex items-center justify-between">
+                                 <div>
+                                      <p className="font-semibold">{format(day, 'MMMM d, EEE')}</p>
+                                      <p className="text-sm text-muted-foreground">
+                                          {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : 'No entries'}
+                                      </p>
+                                 </div>
+                                  <div className={`font-bold text-lg ${score > 0 ? 'text-green-600' : score < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>{score} pts</div>
                                </div>
-                                <div className={`font-bold text-lg ${score > 0 ? 'text-green-600' : score < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>{score} pts</div>
+                               {completedHabitDetails.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-dashed">
+                                    <ul className="space-y-1">
+                                        {completedHabitDetails.map((detail, index) => (
+                                            <li key={index} className="text-sm text-muted-foreground flex items-center justify-between">
+                                                <span>{detail.name}</span>
+                                                <span className="flex items-center gap-1 text-xs">
+                                                  <Clock className="h-3 w-3" />
+                                                  {format(parseISO(detail.completedAt), 'h:mm a')}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                               )}
                             </div>
                         )
                     })}

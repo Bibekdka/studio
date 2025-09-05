@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Habit, HabitLog } from '@/lib/types';
+import type { Habit, HabitLog, CompletedHabit } from '@/lib/types';
 import { format } from 'date-fns';
 
 const HABITS_STORAGE_KEY = 'habit-journey-habits';
@@ -30,7 +30,6 @@ export function useHabits() {
       const storedTarget = localStorage.getItem(TARGET_STORAGE_KEY);
 
       if (storedHabits) {
-        // Migration for habits that don't have a penalty
         const parsedHabits = JSON.parse(storedHabits).map((h: Habit) => ({ penalty: 0, ...h }));
         setHabits(parsedHabits);
       } else {
@@ -38,7 +37,17 @@ export function useHabits() {
       }
 
       if (storedLogs) {
-        setLogs(JSON.parse(storedLogs));
+        // Migration for logs from string[] to object[]
+        const parsedLogs: HabitLog[] = JSON.parse(storedLogs).map((log: any) => {
+            if (log.completedHabits.length > 0 && typeof log.completedHabits[0] === 'string') {
+                return {
+                    ...log,
+                    completedHabits: log.completedHabits.map((habitId: string) => ({ habitId, completedAt: new Date().toISOString() }))
+                };
+            }
+            return log;
+        });
+        setLogs(parsedLogs);
       }
       if (storedTarget) {
         setMonthlyTarget(JSON.parse(storedTarget));
@@ -105,7 +114,7 @@ export function useHabits() {
     setLogs(prevLogs => 
         prevLogs.map(log => ({
             ...log,
-            completedHabits: log.completedHabits.filter(id => id !== habitId)
+            completedHabits: log.completedHabits.filter(c => c.habitId !== habitId)
         }))
     );
   }, []);
@@ -119,16 +128,16 @@ export function useHabits() {
 
       if (todayLogIndex > -1) {
         const todayLog = { ...newLogs[todayLogIndex] };
-        const completedIndex = todayLog.completedHabits.indexOf(habitId);
+        const completedIndex = todayLog.completedHabits.findIndex(c => c.habitId === habitId);
 
         if (completedIndex > -1) {
           todayLog.completedHabits.splice(completedIndex, 1);
         } else {
-          todayLog.completedHabits.push(habitId);
+          todayLog.completedHabits.push({ habitId, completedAt: new Date().toISOString() });
         }
         newLogs[todayLogIndex] = todayLog;
       } else {
-        newLogs.push({ date: todayStr, completedHabits: [habitId] });
+        newLogs.push({ date: todayStr, completedHabits: [{ habitId, completedAt: new Date().toISOString() }] });
       }
       return newLogs;
     });
