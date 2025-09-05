@@ -73,11 +73,11 @@ export default function DashboardPage() {
         break; // Show one milestone at a time
       }
     }
-  }, [monthlyScore, todaysCompletedHabits, habits]);
+  }, [monthlyScore, todaysCompletedHabits, habits, calculateScoreForDay]);
 
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-background">
+    <div className="flex min-h-screen w-full flex-col bg-gradient-to-br from-background to-secondary/30">
       <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 md:p-8">
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>

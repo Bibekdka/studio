@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import type { Habit } from '@/lib/types';
 import { Target, TrendingDown, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Confetti from './confetti';
 
 interface HabitListProps {
   habits: Habit[];
@@ -26,6 +27,17 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
 }) {
   const [swipeOffset, setSwipeOffset] = React.useState(0);
   const [isSwiping, setIsSwiping] = React.useState(false);
+  const [showConfetti, setShowConfetti] = React.useState(false);
+  const prevIsCompleted = React.useRef(isCompleted);
+
+  React.useEffect(() => {
+    if (isCompleted && !prevIsCompleted.current) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    prevIsCompleted.current = isCompleted;
+  }, [isCompleted]);
 
   const handlers = useSwipeable({
     onSwiping: (event) => {
@@ -58,6 +70,7 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
 
   return (
     <div {...handlers} className="relative touch-pan-y overflow-hidden rounded-lg">
+       {showConfetti && <Confetti />}
       {/* Background Actions */}
       <div className="absolute inset-0 flex items-center justify-between bg-secondary">
         <div className="flex h-full items-center justify-start bg-destructive px-6 text-destructive-foreground" style={{ width: Math.max(0, swipeOffset) }}>
@@ -71,7 +84,7 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
       {/* Foreground Habit Item */}
       <div
         className={cn(
-          "flex items-start gap-4 border p-4 transition-transform duration-200 ease-in-out",
+          "relative flex items-start gap-4 border p-4 transition-transform duration-200 ease-in-out",
           isCompleted ? 'bg-primary/5 border-primary/20' : 'bg-card',
           isSwiping ? 'duration-0' : '',
         )}
