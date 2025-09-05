@@ -1,13 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star } from 'lucide-react';
+import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, Settings } from 'lucide-react';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useHabits } from '@/hooks/use-habits';
 import AddHabitDialog from '@/components/add-habit-dialog';
+import EditHabitDialog from '@/components/edit-habit-dialog';
+import DeleteHabitDialog from '@/components/delete-habit-dialog';
 import HabitList from '@/components/habit-list';
 import MotivationalQuote from '@/components/motivational-quote';
 import ProductivityScore from '@/components/productivity-score';
@@ -16,12 +18,17 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getMonth, getYear 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import MilestoneDialog from '@/components/milestone-dialog';
+import type { Habit } from '@/lib/types';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function DashboardPage() {
-  const { habits, logs, addHabit, toggleHabit, monthlyTarget, setMonthlyTarget } = useHabits();
+  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget } = useHabits();
   const [isAddDialogOpen, setAddDialogOpen] = React.useState(false);
   const [isMilestoneOpen, setMilestoneOpen] = React.useState(false);
   const [milestone, setMilestone] = React.useState<number | null>(null);
+
+  const [habitToEdit, setHabitToEdit] = React.useState<Habit | null>(null);
+  const [habitToDelete, setHabitToDelete] = React.useState<Habit | null>(null);
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayLog = logs.find(log => log.date === today);
@@ -120,6 +127,8 @@ export default function DashboardPage() {
                       habits={habits}
                       completedHabitIds={todaysCompletedHabits}
                       onToggleHabit={toggleHabit}
+                      onEditHabit={setHabitToEdit}
+                      onDeleteHabit={setHabitToDelete}
                     />
                   </CardContent>
                 </Card>
@@ -195,6 +204,28 @@ export default function DashboardPage() {
           setAddDialogOpen(false);
         }}
       />
+      {habitToEdit && (
+        <EditHabitDialog
+          open={!!habitToEdit}
+          onOpenChange={(isOpen) => !isOpen && setHabitToEdit(null)}
+          habit={habitToEdit}
+          onHabitEdit={(editedHabit) => {
+            editHabit(editedHabit);
+            setHabitToEdit(null);
+          }}
+        />
+      )}
+      {habitToDelete && (
+        <DeleteHabitDialog
+          open={!!habitToDelete}
+          onOpenChange={(isOpen) => !isOpen && setHabitToDelete(null)}
+          habit={habitToDelete}
+          onConfirmDelete={() => {
+            deleteHabit(habitToDelete.id);
+            setHabitToDelete(null);
+          }}
+        />
+      )}
       {milestone && (
          <MilestoneDialog 
             open={isMilestoneOpen} 

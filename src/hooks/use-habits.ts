@@ -91,6 +91,25 @@ export function useHabits() {
     setHabits(prevHabits => [...prevHabits, newHabit]);
   }, []);
 
+  const editHabit = useCallback((updatedHabit: Habit) => {
+    setHabits(prevHabits => 
+      prevHabits.map(habit => 
+        habit.id === updatedHabit.id ? updatedHabit : habit
+      )
+    );
+  }, []);
+
+  const deleteHabit = useCallback((habitId: string) => {
+    setHabits(prevHabits => prevHabits.filter(habit => habit.id !== habitId));
+    // Also remove from logs
+    setLogs(prevLogs => 
+        prevLogs.map(log => ({
+            ...log,
+            completedHabits: log.completedHabits.filter(id => id !== habitId)
+        }))
+    );
+  }, []);
+
   const toggleHabit = useCallback((habitId: string) => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     
@@ -115,5 +134,5 @@ export function useHabits() {
     });
   }, []);
 
-  return { habits, logs, addHabit, toggleHabit, monthlyTarget, setMonthlyTarget, isLoaded };
+  return { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget, isLoaded };
 }
