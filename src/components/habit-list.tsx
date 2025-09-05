@@ -41,6 +41,13 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
 
   const handlers = useSwipeable({
     onSwiping: (event) => {
+      // Don't swipe if the user is interacting with the checkbox
+      if (
+        event.event.target instanceof HTMLElement &&
+        (event.event.target.closest('button[role="checkbox"]') || event.event.target.closest('label'))
+      ) {
+        return;
+      }
       setIsSwiping(true);
       if (event.deltaX < 0) { // Swiping left
         setSwipeOffset(Math.max(event.deltaX, -160));
@@ -50,11 +57,21 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
     },
     onSwiped: (event) => {
       setIsSwiping(false);
-      if (event.deltaX < -SWIPE_THRESHOLD) {
-        onEdit();
-      } else if (event.deltaX > SWIPE_THRESHOLD) {
-        onDelete();
+       if (
+        event.event.target instanceof HTMLElement &&
+        (event.event.target.closest('button[role="checkbox"]') || event.event.target.closest('label'))
+      ) {
+        setSwipeOffset(0);
+        return;
       }
+      if (Math.abs(event.deltaX) > SWIPE_THRESHOLD) {
+        if (event.deltaX < -SWIPE_THRESHOLD) {
+          onEdit();
+        } else if (event.deltaX > SWIPE_THRESHOLD) {
+          onDelete();
+        }
+      }
+      
       // Reset position after swipe action
       setTimeout(() => setSwipeOffset(0), 200);
     },
