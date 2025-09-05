@@ -41,7 +41,7 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
 
   const handlers = useSwipeable({
     onSwiping: (event) => {
-      if (Math.abs(event.deltaX) > 10) setIsSwiping(true);
+      setIsSwiping(true);
       if (event.deltaX < 0) { // Swiping left
         setSwipeOffset(Math.max(event.deltaX, -160));
       } else { // Swiping right
@@ -57,12 +57,6 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
       }
       // Reset position after swipe action
       setTimeout(() => setSwipeOffset(0), 200);
-    },
-    onTap: () => {
-      // Allow checkbox toggle on tap if not swiping
-      if (!isSwiping) {
-        onToggleHabit(habit.id);
-      }
     },
     preventScrollOnSwipe: true,
     trackMouse: true,
