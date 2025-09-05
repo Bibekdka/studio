@@ -14,7 +14,7 @@ import HabitList from '@/components/habit-list';
 import MotivationalQuote from '@/components/motivational-quote';
 import ProductivityScore from '@/components/productivity-score';
 import ProgressChart from '@/components/progress-chart';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getMonth, getYear, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getMonth, getYear, parseISO, isToday } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import MilestoneDialog from '@/components/milestone-dialog';
@@ -31,35 +31,44 @@ export default function DashboardPage() {
   const [habitToEdit, setHabitToEdit] = React.useState<Habit | null>(null);
   const [habitToDelete, setHabitToDelete] = React.useState<Habit | null>(null);
 
+  const [currentDate, setCurrentDate] = React.useState(new Date());
+  
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayLog = logs.find(log => log.date === today);
   const todaysCompletedHabits = todayLog?.completedHabits || [];
   const todaysCompletedHabitIds = todaysCompletedHabits.map(c => c.habitId);
 
-
-  const currentDate = new Date();
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const monthlyLogs = logs.filter(log => {
     const logDate = new Date(log.date);
-    return getMonth(logDate) === getMonth(currentDate) && getYear(logDate) === getYear(currentDate);
+    // Adjusting for timezone differences by comparing year and month.
+    return getYear(logDate) === getYear(currentDate) && getMonth(logDate) === getMonth(currentDate);
   });
-
-  const calculateScoreForDay = (completedHabits: CompletedHabit[]) => {
-    const completedIds = completedHabits.map(c => c.habitId);
-    const completedScore = habits
-      .filter(h => completedIds.includes(h.id))
-      .reduce((sum, h) => sum + h.points, 0);
-
-    const missedPenalty = habits
-      .filter(h => h.penalty > 0 && !completedIds.includes(h.id))
-      .reduce((sum, h) => sum + h.penalty, 0);
-
-    return completedScore - missedPenalty;
-  };
   
+  const calculateScoreForDay = React.useCallback((completedHabits: CompletedHabit[]) => {
+    const completedIds = completedHabits.map(c => c.habitId);
+    let score = 0;
+    
+    habits.forEach(habit => {
+      if (completedIds.includes(habit.id)) {
+        score += habit.points;
+      } else {
+        // Apply penalty only if the day for the log is not today
+        const logForHabit = logs.find(log => log.completedHabits === completedHabits);
+        if (logForHabit && !isToday(parseISO(logForHabit.date + 'T00:00:00'))) {
+             score -= habit.penalty;
+        } else if (!logForHabit) { // Penalize past days with no entries
+             score -= habit.penalty;
+        }
+      }
+    });
+    return score;
+  }, [habits, logs]);
+
+
   const monthlyScore = monthlyLogs.reduce((total, log) => {
     return total + calculateScoreForDay(log.completedHabits);
   }, 0);
@@ -68,7 +77,8 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     const milestones = [100, 250, 500, 1000, 2000, 5000];
-    const previousScore = monthlyScore - calculateScoreForDay(todaysCompletedHabits);
+    const todaysScore = todayLog ? calculateScoreForDay(todayLog.completedHabits) : 0;
+    const previousScore = monthlyScore - todaysScore;
 
     for (const m of milestones) {
       if (previousScore < m && monthlyScore >= m) {
@@ -77,8 +87,11 @@ export default function DashboardPage() {
         break; // Show one milestone at a time
       }
     }
-  }, [monthlyScore, todaysCompletedHabits, habits]);
+  }, [monthlyScore, todayLog, calculateScoreForDay]);
 
+  React.useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-gradient-to-br from-background to-secondary/30">
@@ -182,7 +195,7 @@ export default function DashboardPage() {
                     {daysInMonth.map(day => {
                         const dayString = format(day, 'yyyy-MM-dd');
                         const log = logs.find(l => l.date === dayString);
-                        const score = log ? calculateScoreForDay(log.completedHabits) : 0;
+                        const score = log ? calculateScoreForDay(log.completedHabits) : -habits.reduce((sum, h) => sum + h.penalty, 0);
                         const completedHabitDetails = log ? log.completedHabits.map(ch => {
                             const habit = habits.find(h => h.id === ch.habitId);
                             return {
@@ -200,7 +213,7 @@ export default function DashboardPage() {
                                           {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : 'No entries'}
                                       </p>
                                  </div>
-                                  <div className={`font-bold text-lg ${score > 0 ? 'text-green-600' : score < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>{score} pts</div>
+                                  <div className={`font-bold text-lg ${score > 0 ? 'text-primary' : score < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{score} pts</div>
                                </div>
                                {completedHabitDetails.length > 0 && (
                                 <div className="mt-2 pt-2 border-t border-dashed">
