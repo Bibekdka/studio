@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { Habit } from '@/lib/types';
-import { Target, TrendingDown, Edit, Trash2 } from 'lucide-react';
+import { Target, TrendingDown, Check, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Confetti from './confetti';
 
@@ -18,7 +18,7 @@ interface HabitListProps {
 
 const SWIPE_THRESHOLD = 50; // pixels
 
-function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
+function HabitItem({ habit, isCompleted, onToggleHabit, onDelete }: {
   habit: Habit,
   isCompleted: boolean,
   onToggleHabit: (id: string) => void,
@@ -41,33 +41,15 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
 
   const handlers = useSwipeable({
     onSwiping: (event) => {
-      // Don't swipe if the user is interacting with the checkbox
-      if (
-        event.event.target instanceof HTMLElement &&
-        (event.event.target.closest('button[role="checkbox"]') || event.event.target.closest('label'))
-      ) {
-        return;
-      }
       setIsSwiping(true);
-      if (event.deltaX < 0) { // Swiping left
-        setSwipeOffset(Math.max(event.deltaX, -160));
-      } else { // Swiping right
-        setSwipeOffset(Math.min(event.deltaX, 160));
-      }
+      setSwipeOffset(event.deltaX);
     },
     onSwiped: (event) => {
       setIsSwiping(false);
-       if (
-        event.event.target instanceof HTMLElement &&
-        (event.event.target.closest('button[role="checkbox"]') || event.event.target.closest('label'))
-      ) {
-        setSwipeOffset(0);
-        return;
-      }
       if (Math.abs(event.deltaX) > SWIPE_THRESHOLD) {
-        if (event.deltaX < -SWIPE_THRESHOLD) {
-          onEdit();
-        } else if (event.deltaX > SWIPE_THRESHOLD) {
+        if (event.deltaX < -SWIPE_THRESHOLD) { // Swiped left
+          onToggleHabit(habit.id);
+        } else if (event.deltaX > SWIPE_THRESHOLD) { // Swiped right
           onDelete();
         }
       }
@@ -87,8 +69,8 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
         <div className="flex h-full items-center justify-start bg-destructive px-6 text-destructive-foreground" style={{ width: Math.max(0, swipeOffset) }}>
           <Trash2 className="h-5 w-5" />
         </div>
-        <div className="flex h-full items-center justify-end bg-blue-500 px-6 text-white" style={{ width: Math.max(0, -swipeOffset) }}>
-          <Edit className="h-5 w-5" />
+        <div className="flex h-full items-center justify-end bg-primary px-6 text-primary-foreground" style={{ width: Math.max(0, -swipeOffset) }}>
+          <Check className="h-5 w-5" />
         </div>
       </div>
 
@@ -104,12 +86,11 @@ function HabitItem({ habit, isCompleted, onToggleHabit, onEdit, onDelete }: {
         <Checkbox
           id={`habit-${habit.id}`}
           checked={isCompleted}
-          onCheckedChange={() => onToggleHabit(habit.id)}
-          className="mt-1 h-5 w-5"
-          aria-label={`Mark '${habit.name}' as ${isCompleted ? 'incomplete' : 'complete'}`}
+          aria-label={`'${habit.name}' is ${isCompleted ? 'complete' : 'incomplete'}`}
+          className="mt-1 h-5 w-5 pointer-events-none"
         />
         <div className="grid gap-1 flex-1">
-          <label htmlFor={`habit-${habit.id}`} className="font-medium cursor-pointer">
+          <label htmlFor={`habit-${habit.id}`} className="font-medium">
             {habit.name}
           </label>
           <p className="text-sm text-muted-foreground">{habit.description}</p>
