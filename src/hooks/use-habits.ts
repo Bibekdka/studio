@@ -9,12 +9,7 @@ const LOGS_STORAGE_KEY = 'habit-journey-logs';
 const TARGET_STORAGE_KEY = 'habit-journey-target';
 
 const getInitialHabits = (): Habit[] => {
-  return [
-    { id: '1', name: 'Read for 15 minutes', description: 'Read a book or an article.', points: 10, penalty: 5 },
-    { id: '2', name: 'Morning workout', description: 'A 20-minute exercise session.', points: 20, penalty: 10 },
-    { id: '3', name: 'Meditate', description: '5 minutes of mindfulness meditation.', points: 15, penalty: 0 },
-    { id: '4', name: 'Drink 8 glasses of water', description: 'Stay hydrated throughout the day.', points: 5, penalty: 0 },
-  ];
+  return [];
 };
 
 export function useHabits() {
