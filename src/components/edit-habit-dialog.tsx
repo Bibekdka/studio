@@ -22,7 +22,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Habit } from '@/lib/types';
-import { cn } from '@/lib/utils';
 
 const habitIcons = {
   Dumbbell: <Dumbbell />,
@@ -58,20 +57,14 @@ interface EditHabitDialogProps {
 export default function EditHabitDialog({ open, onOpenChange, habit, onHabitEdit }: EditHabitDialogProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: habit.name,
-      description: habit.description,
-      icon: habit.icon,
-      points: habit.points,
-      penalty: habit.penalty,
-    },
+    defaultValues: habit,
   });
 
   React.useEffect(() => {
     if (habit) {
       form.reset(habit);
     }
-  }, [habit, form]);
+  }, [habit, form, open]);
 
 
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -107,7 +100,7 @@ export default function EditHabitDialog({ open, onOpenChange, habit, onHabitEdit
                         {Object.entries(habitIcons).map(([name, icon]) => (
                             <SelectItem key={name} value={name}>
                                 <div className="flex items-center gap-2">
-                                    {React.cloneElement(icon, { className: "h-4 w-4"})}
+                                    {React.cloneElement(icon as React.ReactElement, { className: "h-4 w-4"})}
                                     <span>{name}</span>
                                 </div>
                             </SelectItem>

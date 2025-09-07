@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -5,17 +6,17 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, Rocket, User } from 'lucide-react';
+import { Check, Rocket } from 'lucide-react';
 
 export default function LoginPage() {
-  const { user, signInWithGoogle, loading } = useAuth();
+  const { user, loading, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   React.useEffect(() => {
-    if (user) {
+    if (!loading && user) {
       router.push('/');
     }
-  }, [user, router]);
+  }, [user, loading, router]);
 
   const features = [
     'Track daily habits',
@@ -39,7 +40,7 @@ export default function LoginPage() {
           <div className="my-6 space-y-3">
             {features.map((feature, index) => (
               <div key={index} className="flex items-start gap-3">
-                <Check className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
                 <p className="text-muted-foreground">{feature}</p>
               </div>
             ))}

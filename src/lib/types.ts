@@ -2,7 +2,7 @@
 export interface Habit {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   icon: string;
   points: number;
   penalty: number;
@@ -10,7 +10,7 @@ export interface Habit {
 
 export interface CompletedHabit {
   habitId: string;
-  completedAt: string;
+  completedAt: number; // Store as milliseconds
 }
 
 export interface HabitLog {

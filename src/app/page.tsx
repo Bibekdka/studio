@@ -3,10 +3,17 @@
 
 import * as React from 'react';
 import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getYear, getMonth, parseISO, isToday, isFuture } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/components/auth-provider';
 import { useHabits } from '@/hooks/use-habits';
+import type { Habit } from '@/lib/types';
 import AddHabitDialog from '@/components/add-habit-dialog';
 import EditHabitDialog from '@/components/edit-habit-dialog';
 import DeleteHabitDialog from '@/components/delete-habit-dialog';
@@ -14,55 +21,28 @@ import HabitList from '@/components/habit-list';
 import MotivationalQuote from '@/components/motivational-quote';
 import ProductivityScore from '@/components/productivity-score';
 import ProgressChart from '@/components/progress-chart';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getMonth, getYear, parseISO, isToday } from 'date-fns';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
 import MilestoneDialog from '@/components/milestone-dialog';
-import type { Habit } from '@/lib/types';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/components/auth-provider';
-import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, isLoaded } = useHabits();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, loading: habitsLoading } = useHabits();
+  const router = useRouter();
+  const { toast } = useToast();
+
   const [isAddDialogOpen, setAddDialogOpen] = React.useState(false);
   const [isMilestoneOpen, setMilestoneOpen] = React.useState(false);
   const [milestone, setMilestone] = React.useState<number | null>(null);
-  const { toast } = useToast();
-
-  const { user, signOut } = useAuth();
-  const router = useRouter();
-
   const [habitToEdit, setHabitToEdit] = React.useState<Habit | null>(null);
   const [habitToDelete, setHabitToDelete] = React.useState<Habit | null>(null);
 
-  const [currentDate, setCurrentDate] = React.useState(new Date());
+  const [currentDate] = React.useState(new Date());
 
   React.useEffect(() => {
-    if (isLoaded && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [user, isLoaded, router]);
-  
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const todayLog = logs.find(log => log.date === today);
-  const todaysCompletedHabits = todayLog?.completedHabits || [];
-  const todaysCompletedHabitIds = todaysCompletedHabits.map(c => c.habitId);
+  }, [user, authLoading, router]);
 
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-  const monthlyLogs = logs.filter(log => {
-    try {
-        const logDate = parseISO(log.date);
-        return getYear(logDate) === getYear(currentDate) && getMonth(logDate) === getMonth(currentDate);
-    } catch(e) {
-        // handle invalid date format in logs
-        return false;
-    }
-  });
-  
   const calculateScoreForDay = React.useCallback((completedHabitIds: string[]) => {
     let score = 0;
     habits.forEach(habit => {
@@ -75,28 +55,46 @@ export default function DashboardPage() {
     return score;
   }, [habits]);
 
+  const { monthlyScore, todaysCompletedHabitIds } = React.useMemo(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    let todaysCompletedHabitIds: string[] = [];
 
-  const monthlyScore = monthlyLogs.reduce((total, log) => {
-    return total + calculateScoreForDay(log.completedHabits.map(c => c.habitId));
-  }, 0);
+    const monthlyLogs = logs.filter(log => {
+      try {
+        const logDate = parseISO(log.date);
+        return getYear(logDate) === getYear(currentDate) && getMonth(logDate) === getMonth(currentDate);
+      } catch (e) {
+        return false;
+      }
+    });
+
+    const score = monthlyLogs.reduce((total, log) => {
+      const completedIds = log.completedHabits.map(c => c.habitId);
+      if(log.date === today) {
+        todaysCompletedHabitIds = completedIds;
+      }
+      return total + calculateScoreForDay(completedIds);
+    }, 0);
+
+    return { monthlyScore: score, todaysCompletedHabitIds };
+  }, [logs, habits, currentDate, calculateScoreForDay]);
 
   const monthlyProgress = monthlyTarget > 0 ? (monthlyScore / monthlyTarget) * 100 : 0;
 
   React.useEffect(() => {
     const milestones = [100, 250, 500, 1000, 2000, 5000];
-    const todaysScore = todayLog ? calculateScoreForDay(todaysCompletedHabitIds) : 0;
-    const previousScore = monthlyScore - todaysScore;
+    const previousScore = monthlyScore - calculateScoreForDay(todaysCompletedHabitIds);
 
     for (const m of milestones) {
       if (previousScore < m && monthlyScore >= m) {
         setMilestone(m);
         setMilestoneOpen(true);
-        break; // Show one milestone at a time
+        break;
       }
     }
-  }, [monthlyScore, todayLog, calculateScoreForDay, todaysCompletedHabitIds]);
+  }, [monthlyScore, todaysCompletedHabitIds, calculateScoreForDay]);
 
-  if (!user || !isLoaded) {
+  if (authLoading || habitsLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="text-center">
@@ -105,6 +103,9 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const daysInMonth = eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) });
+  const todayLog = logs.find(log => log.date === format(new Date(), 'yyyy-MM-dd'));
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -161,7 +162,7 @@ export default function DashboardPage() {
                   <CardContent>
                     <HabitList
                       habits={habits}
-                      completedHabits={todaysCompletedHabits}
+                      completedHabits={todayLog?.completedHabits || []}
                       onToggleHabit={toggleHabit}
                       onEditHabit={setHabitToEdit}
                       onDeleteHabit={setHabitToDelete}
@@ -214,11 +215,22 @@ export default function DashboardPage() {
                     {daysInMonth.map(day => {
                         const dayString = format(day, 'yyyy-MM-dd');
                         const log = logs.find(l => l.date === dayString);
-                        const isFuture = day > new Date() && !isToday(day);
+                        
+                        if (isFuture(day) && !isToday(day)) {
+                            return (
+                                <div key={dayString} className="flex items-center justify-between rounded-lg border p-3 bg-muted/50">
+                                   <div>
+                                        <p className="font-semibold text-muted-foreground">{format(day, 'MMMM d, EEE')}</p>
+                                        <p className="text-sm text-muted-foreground">Upcoming</p>
+                                   </div>
+                                </div>
+                            )
+                        }
+
                         let score = 0;
                         if (log) {
                             score = calculateScoreForDay(log.completedHabits.map(c => c.habitId));
-                        } else if (!isFuture) {
+                        } else if (habits.length > 0) {
                             score = -habits.reduce((sum, h) => sum + h.penalty, 0);
                         }
 
@@ -227,10 +239,10 @@ export default function DashboardPage() {
                                <div>
                                     <p className="font-semibold">{format(day, 'MMMM d, EEE')}</p>
                                     <p className="text-sm text-muted-foreground">
-                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : (isFuture ? 'Upcoming' : 'No entries')}
+                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : (habits.length > 0 ? `0 of ${habits.length} habits completed` : 'No entries')}
                                     </p>
                                </div>
-                                <div className={`font-bold text-lg ${score > 0 ? 'text-primary' : score < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{score !== 0 || !isFuture ? `${score} pts` : ''}</div>
+                                <div className={`font-bold text-lg ${score > 0 ? 'text-primary' : score < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{score !== 0 ? `${score} pts` : (habits.length > 0 ? '0 pts' : '')}</div>
                             </div>
                         )
                     })}
@@ -259,6 +271,10 @@ export default function DashboardPage() {
           onHabitEdit={(editedHabit) => {
             editHabit(editedHabit);
             setHabitToEdit(null);
+            toast({
+              title: "Habit Updated!",
+              description: `Your habit "${editedHabit.name}" has been saved.`,
+            });
           }}
         />
       )}
@@ -268,6 +284,11 @@ export default function DashboardPage() {
           onOpenChange={(isOpen) => !isOpen && setHabitToDelete(null)}
           habit={habitToDelete}
           onConfirmDelete={() => {
+            toast({
+              title: "Habit Deleted",
+              description: `The habit "${habitToDelete.name}" has been removed.`,
+              variant: "destructive",
+            });
             deleteHabit(habitToDelete.id);
             setHabitToDelete(null);
           }}

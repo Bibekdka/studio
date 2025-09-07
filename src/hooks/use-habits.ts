@@ -27,21 +27,25 @@ export function useHabits() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<HabitLog[]>([]);
   const [monthlyTarget, setMonthlyTarget] = useState<number>(1000);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       setHabits([]);
       setLogs([]);
-      setIsLoaded(true);
+      setLoading(false);
       return;
     }
 
+    setLoading(true);
     const habitsQuery = query(collection(db, 'users', user.uid, 'habits'));
     const unsubscribeHabits = onSnapshot(habitsQuery, (snapshot) => {
       const serverHabits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit));
       setHabits(serverHabits);
-      setIsLoaded(true);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching habits:", error);
+      setLoading(false);
     });
 
     const logsQuery = query(collection(db, 'users', user.uid, 'logs'));
@@ -55,7 +59,7 @@ export function useHabits() {
         if (doc.exists() && doc.data().monthlyTarget) {
             setMonthlyTarget(doc.data().monthlyTarget);
         } else {
-            setMonthlyTarget(1000);
+            setMonthlyTarget(1000); // Default value
         }
     });
 
@@ -86,6 +90,8 @@ export function useHabits() {
     if (!user) return;
     const habitRef = doc(db, 'users', user.uid, 'habits', habitId);
     await deleteDoc(habitRef);
+    // Note: You might want to remove this habit from all logs as well.
+    // This is a complex operation and has been omitted for simplicity.
   }, [user]);
 
   const toggleHabit = useCallback(async (habitId: string) => {
@@ -95,21 +101,22 @@ export function useHabits() {
     
     try {
         const logDoc = await getDoc(logRef);
-        let completedHabits: CompletedHabit[] = [];
+        
         if (logDoc.exists()) {
-            completedHabits = logDoc.data().completedHabits || [];
-        }
+            const completedHabits: CompletedHabit[] = logDoc.data().completedHabits || [];
+            const habitIndex = completedHabits.findIndex(h => h.habitId === habitId);
 
-        const habitIndex = completedHabits.findIndex(h => h.habitId === habitId);
-
-        if (habitIndex > -1) {
-            // Habit exists, so remove it
-             const habitToRemove = completedHabits[habitIndex];
-             await setDoc(logRef, { completedHabits: arrayRemove(habitToRemove) }, { merge: true });
+            if (habitIndex > -1) {
+                 const habitToRemove = completedHabits[habitIndex];
+                 await setDoc(logRef, { completedHabits: arrayRemove(habitToRemove) }, { merge: true });
+            } else {
+                const newCompletedHabit = { habitId, completedAt: Timestamp.now().toMillis() };
+                await setDoc(logRef, { completedHabits: arrayUnion(newCompletedHabit) }, { merge: true });
+            }
         } else {
-            // Habit does not exist, so add it
-            const newCompletedHabit = { habitId, completedAt: Timestamp.now().toDate().toISOString() };
-            await setDoc(logRef, { date: todayStr, completedHabits: arrayUnion(newCompletedHabit) }, { merge: true });
+            // No log for today, create one with the completed habit
+            const newCompletedHabit = { habitId, completedAt: Timestamp.now().toMillis() };
+            await setDoc(logRef, { date: todayStr, completedHabits: [newCompletedHabit] });
         }
     } catch (error) {
         console.error("Error toggling habit: ", error);
@@ -123,5 +130,5 @@ export function useHabits() {
   }, [user]);
 
 
-  return { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget: updateMonthlyTarget, isLoaded };
+  return { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget: updateMonthlyTarget, loading };
 }
