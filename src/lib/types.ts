@@ -8,7 +8,6 @@ export interface Habit {
 
 export interface CompletedHabit {
   habitId: string;
-  completedAt: string; // ISO timestamp
 }
 
 export interface HabitLog {

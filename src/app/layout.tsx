@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
-import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider } from '@/components/auth-provider';
 
 export const metadata: Metadata = {
@@ -25,7 +24,6 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <Toaster />
-          <Analytics />
         </AuthProvider>
       </body>
     </html>

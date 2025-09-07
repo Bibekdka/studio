@@ -1,8 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, Clock, LogOut } from 'lucide-react';
-import Image from 'next/image';
+import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, LogOut } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -18,7 +17,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getMonth, getYear,
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import MilestoneDialog from '@/components/milestone-dialog';
-import type { Habit, CompletedHabit } from '@/lib/types';
+import type { Habit } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
@@ -59,35 +58,28 @@ export default function DashboardPage() {
     return getYear(logDate) === getYear(currentDate) && getMonth(logDate) === getMonth(currentDate);
   });
   
-  const calculateScoreForDay = React.useCallback((completedHabits: CompletedHabit[]) => {
-    const completedIds = completedHabits.map(c => c.habitId);
+  const calculateScoreForDay = React.useCallback((completedHabitIds: string[]) => {
     let score = 0;
-    
     habits.forEach(habit => {
-      if (completedIds.includes(habit.id)) {
+      if (completedHabitIds.includes(habit.id)) {
         score += habit.points;
       } else {
-        const logForHabit = logs.find(log => log.completedHabits === completedHabits);
-        if (logForHabit && !isToday(parseISO(logForHabit.date + 'T00:00:00'))) {
-             score -= habit.penalty;
-        } else if (!logForHabit && isLoaded) { // Penalize past days with no entries
-             score -= habit.penalty;
-        }
+        score -= habit.penalty;
       }
     });
     return score;
-  }, [habits, logs, isLoaded]);
+  }, [habits]);
 
 
   const monthlyScore = monthlyLogs.reduce((total, log) => {
-    return total + calculateScoreForDay(log.completedHabits);
+    return total + calculateScoreForDay(log.completedHabits.map(c => c.habitId));
   }, 0);
 
   const monthlyProgress = monthlyTarget > 0 ? (monthlyScore / monthlyTarget) * 100 : 0;
 
   React.useEffect(() => {
     const milestones = [100, 250, 500, 1000, 2000, 5000];
-    const todaysScore = todayLog ? calculateScoreForDay(todayLog.completedHabits) : 0;
+    const todaysScore = todayLog ? calculateScoreForDay(todaysCompletedHabitIds) : 0;
     const previousScore = monthlyScore - todaysScore;
 
     for (const m of milestones) {
@@ -97,11 +89,7 @@ export default function DashboardPage() {
         break; // Show one milestone at a time
       }
     }
-  }, [monthlyScore, todayLog, calculateScoreForDay]);
-
-  React.useEffect(() => {
-    setCurrentDate(new Date());
-  }, []);
+  }, [monthlyScore, todayLog, calculateScoreForDay, todaysCompletedHabitIds]);
 
   if (!user || !isLoaded) {
     return (
@@ -114,7 +102,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-gradient-to-br from-background to-secondary/30">
+    <div className="flex min-h-screen w-full flex-col bg-muted/40">
       <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 md:p-8">
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -140,7 +128,7 @@ export default function DashboardPage() {
               <CalendarCheck className="h-5 w-5 text-primary" />
               {format(currentDate, 'MMMM yyyy')} Progress
             </CardTitle>
-            <CardDescription>You've earned <span className="font-bold text-primary">{monthlyScore}</span> points towards your goal of <span className="font-bold text-primary">{monthlyTarget}</span>.</CardDescription>
+            <CardDescription>You've earned <span className="font-bold text-green-600">{monthlyScore}</span> points towards your goal of <span className="font-bold text-green-600">{monthlyTarget}</span>.</CardDescription>
           </CardHeader>
           <CardContent>
             <Progress value={monthlyProgress} className="w-full" />
@@ -221,41 +209,17 @@ export default function DashboardPage() {
                     {daysInMonth.map(day => {
                         const dayString = format(day, 'yyyy-MM-dd');
                         const log = logs.find(l => l.date === dayString);
-                        const score = log ? calculateScoreForDay(log.completedHabits) : (isToday(day) || day > new Date()) ? 0 : -habits.reduce((sum, h) => sum + h.penalty, 0);
-                        const completedHabitDetails = log ? log.completedHabits.map(ch => {
-                            const habit = habits.find(h => h.id === ch.habitId);
-                            return {
-                                name: habit?.name || 'Unknown Habit',
-                                completedAt: ch.completedAt
-                            }
-                        }) : [];
+                        const score = log ? calculateScoreForDay(log.completedHabits.map(c => c.habitId)) : isToday(day) || day > new Date() ? 0 : -habits.reduce((sum, h) => sum + h.penalty, 0);
 
                         return (
-                            <div key={dayString} className="flex flex-col rounded-lg border p-3">
-                               <div className="flex items-center justify-between">
-                                 <div>
-                                      <p className="font-semibold">{format(day, 'MMMM d, EEE')}</p>
-                                      <p className="text-sm text-muted-foreground">
-                                          {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : 'No entries'}
-                                      </p>
-                                 </div>
-                                  <div className={`font-bold text-lg ${score > 0 ? 'text-primary' : score < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{score} pts</div>
+                            <div key={dayString} className="flex items-center justify-between rounded-lg border p-3">
+                               <div>
+                                    <p className="font-semibold">{format(day, 'MMMM d, EEE')}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : 'No entries'}
+                                    </p>
                                </div>
-                               {completedHabitDetails.length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-dashed">
-                                    <ul className="space-y-1">
-                                        {completedHabitDetails.map((detail, index) => (
-                                            <li key={index} className="text-sm text-muted-foreground flex items-center justify-between">
-                                                <span>{detail.name}</span>
-                                                <span className="flex items-center gap-1 text-xs">
-                                                  <Clock className="h-3 w-3" />
-                                                  {format(parseISO(detail.completedAt), 'h:mm a')}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                               )}
+                                <div className={`font-bold text-lg ${score > 0 ? 'text-green-600' : score < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>{score} pts</div>
                             </div>
                         )
                     })}
@@ -271,7 +235,7 @@ export default function DashboardPage() {
           addHabit(newHabit);
           setAddDialogOpen(false);
           toast({
-            title: "Habit Added! ✅",
+            title: "Habit Added!",
             description: `Your new habit "${newHabit.name}" has been successfully created.`,
           });
         }}

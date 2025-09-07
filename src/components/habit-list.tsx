@@ -1,11 +1,17 @@
 'use client';
 
 import * as React from 'react';
-import { useSwipeable } from 'react-swipeable';
+import { MoreVertical, Edit, Trash2, Target, TrendingDown } from 'lucide-react';
+
 import type { Habit, CompletedHabit } from '@/lib/types';
-import { Target, TrendingDown, Check, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import Confetti from './confetti';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface HabitListProps {
   habits: Habit[];
@@ -15,95 +21,66 @@ interface HabitListProps {
   onDeleteHabit: (habit: Habit) => void;
 }
 
-const SWIPE_THRESHOLD = 50; // pixels
-
-function HabitItem({ habit, isCompleted, onToggleHabit, onDelete }: {
-  habit: Habit,
-  isCompleted: boolean,
-  onToggleHabit: (id: string) => void,
-  onEdit: () => void,
-  onDelete: () => void,
+function HabitItem({
+  habit,
+  isCompleted,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  habit: Habit;
+  isCompleted: boolean;
+  onToggle: (id: string) => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
-  const [swipeOffset, setSwipeOffset] = React.useState(0);
-  const [isSwiping, setIsSwiping] = React.useState(false);
-  const [showConfetti, setShowConfetti] = React.useState(false);
-  const prevIsCompleted = React.useRef(isCompleted);
-
-  React.useEffect(() => {
-    if (isCompleted && !prevIsCompleted.current) {
-      setShowConfetti(true);
-      const timer = setTimeout(() => setShowConfetti(false), 2000);
-      return () => clearTimeout(timer);
-    }
-    prevIsCompleted.current = isCompleted;
-  }, [isCompleted]);
-
-  const handlers = useSwipeable({
-    onSwiping: (event) => {
-      setIsSwiping(true);
-      setSwipeOffset(event.deltaX);
-    },
-    onSwiped: (event) => {
-      setIsSwiping(false);
-      if (Math.abs(event.deltaX) > SWIPE_THRESHOLD) {
-        if (event.deltaX < -SWIPE_THRESHOLD) { // Swiped left
-          onToggleHabit(habit.id);
-        } else if (event.deltaX > SWIPE_THRESHOLD) { // Swiped right
-          onDelete();
-        }
-      }
-      
-      // Reset position after swipe action
-      setTimeout(() => setSwipeOffset(0), 200);
-    },
-    preventScrollOnSwipe: true,
-    trackMouse: true,
-  });
-
   return (
-    <div {...handlers} className="relative touch-pan-y overflow-hidden rounded-lg">
-       {showConfetti && <Confetti />}
-      {/* Background Actions */}
-      <div className="absolute inset-0 flex items-center justify-between bg-secondary">
-        <div className="flex h-full items-center justify-start bg-destructive px-6 text-destructive-foreground" style={{ width: Math.max(0, swipeOffset) }}>
-          <Trash2 className="h-5 w-5" />
+    <div className="flex items-center gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50">
+      <Checkbox
+        id={`habit-${habit.id}`}
+        checked={isCompleted}
+        onCheckedChange={() => onToggle(habit.id)}
+        aria-label={`Mark ${habit.name} as complete`}
+      />
+      <div className="grid gap-1 flex-1">
+        <label htmlFor={`habit-${habit.id}`} className="font-medium cursor-pointer">
+          {habit.name}
+        </label>
+        <p className="text-sm text-muted-foreground">{habit.description}</p>
+      </div>
+      <div className="flex flex-col items-end space-y-1 text-sm">
+        <div className={`font-bold ${isCompleted ? 'text-primary' : 'text-muted-foreground'}`}>
+          +{habit.points} pts
         </div>
-        <div className="flex h-full items-center justify-end bg-primary px-6 text-primary-foreground" style={{ width: Math.max(0, -swipeOffset) }}>
-          <Check className="h-5 w-5" />
-        </div>
+        {habit.penalty > 0 && (
+          <div className={`flex items-center gap-1 text-xs ${isCompleted ? 'text-muted-foreground/50' : 'text-destructive/80'}`}>
+            <TrendingDown className="h-3 w-3" />
+            <span>{habit.penalty} pts</span>
+          </div>
+        )}
       </div>
 
-      {/* Foreground Habit Item */}
-      <div
-        className={cn(
-          "relative flex items-start gap-4 border p-4 transition-transform duration-200 ease-in-out",
-          isCompleted ? 'bg-primary/5 border-primary/20' : 'bg-card',
-          isSwiping ? 'duration-0' : '',
-        )}
-        style={{ transform: `translateX(${swipeOffset}px)` }}
-      >
-        <div className="grid gap-1 flex-1">
-          <div className="font-medium">
-            {habit.name}
-          </div>
-          <p className="text-sm text-muted-foreground">{habit.description}</p>
-        </div>
-        <div className="flex flex-col items-end space-y-1 text-sm">
-          <div className={`font-bold ${isCompleted ? 'text-primary' : 'text-muted-foreground'}`}>
-            +{habit.points} pts
-          </div>
-          {habit.penalty > 0 && (
-            <div className={`flex items-center gap-1 text-xs ${isCompleted ? 'text-muted-foreground/50' : 'text-destructive/80'}`}>
-              <TrendingDown className="h-3 w-3" />
-              <span>{habit.penalty} pts</span>
-            </div>
-          )}
-        </div>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreVertical className="h-4 w-4" />
+            <span className="sr-only">More options</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onEdit}>
+            <Edit className="mr-2 h-4 w-4" />
+            <span>Edit</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onDelete} className="text-red-600">
+            <Trash2 className="mr-2 h-4 w-4" />
+            <span>Delete</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
-
 
 export default function HabitList({ habits, completedHabits, onToggleHabit, onEditHabit, onDeleteHabit }: HabitListProps) {
   if (habits.length === 0) {
@@ -125,7 +102,7 @@ export default function HabitList({ habits, completedHabits, onToggleHabit, onEd
           key={habit.id}
           habit={habit}
           isCompleted={completedHabitIds.includes(habit.id)}
-          onToggleHabit={onToggleHabit}
+          onToggle={onToggleHabit}
           onEdit={() => onEditHabit(habit)}
           onDelete={() => onDeleteHabit(habit)}
         />
