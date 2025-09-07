@@ -1,7 +1,8 @@
+
 'use client';
 
 import * as React from 'react';
-import { MoreVertical, Edit, Trash2, Target, TrendingDown } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Target, TrendingDown, BrainCircuit, Dumbbell, Book, Leaf, Coffee, Code, Pen, Droplets, Bed, CookingPot, DollarSign, Heart } from 'lucide-react';
 
 import type { Habit, CompletedHabit } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+const habitIcons: { [key: string]: React.ReactNode } = {
+  Dumbbell: <Dumbbell />,
+  Book: <Book />,
+  Leaf: <Leaf />,
+  Coffee: <Coffee />,
+  Code: <Code />,
+  Pen: <Pen />,
+  Droplets: <Droplets />,
+  Bed: <Bed />,
+  CookingPot: <CookingPot />,
+  DollarSign: <DollarSign />,
+  Heart: <Heart />,
+  BrainCircuit: <BrainCircuit />,
+};
 
 interface HabitListProps {
   habits: Habit[];
@@ -34,18 +50,17 @@ function HabitItem({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const Icon = habitIcons[habit.icon] || <BrainCircuit />;
+
   return (
     <div className="flex items-center gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50">
-      <Checkbox
-        id={`habit-${habit.id}`}
-        checked={isCompleted}
-        onCheckedChange={() => onToggle(habit.id)}
-        aria-label={`Mark ${habit.name} as complete`}
-      />
-      <div className="grid gap-1 flex-1">
-        <label htmlFor={`habit-${habit.id}`} className="font-medium cursor-pointer">
+       <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary">
+          {React.cloneElement(Icon as React.ReactElement, { className: "h-5 w-5"})}
+       </div>
+      <div className="grid gap-1 flex-1 cursor-pointer" onClick={() => onToggle(habit.id)}>
+        <p className="font-medium">
           {habit.name}
-        </label>
+        </p>
         <p className="text-sm text-muted-foreground">{habit.description}</p>
       </div>
       <div className="flex flex-col items-end space-y-1 text-sm">
@@ -59,7 +74,12 @@ function HabitItem({
           </div>
         )}
       </div>
-
+        <Checkbox
+            checked={isCompleted}
+            onCheckedChange={() => onToggle(habit.id)}
+            aria-label={`Mark ${habit.name} as complete`}
+            className="h-6 w-6"
+        />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8">

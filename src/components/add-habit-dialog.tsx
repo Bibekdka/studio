@@ -1,8 +1,12 @@
+
 'use client';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import * as React from 'react';
+import { BrainCircuit, Dumbbell, Book, Leaf, Coffee, Code, Pen, Droplets, Bed, CookingPot, DollarSign, Heart } from 'lucide-react';
+
 
 import { Button } from '@/components/ui/button';
 import {
@@ -16,11 +20,30 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Habit } from '@/lib/types';
+import { cn } from '@/lib/utils';
+
+const habitIcons = {
+  Dumbbell: <Dumbbell />,
+  Book: <Book />,
+  Leaf: <Leaf />,
+  Coffee: <Coffee />,
+  Code: <Code />,
+  Pen: <Pen />,
+  Droplets: <Droplets />,
+  Bed: <Bed />,
+  CookingPot: <CookingPot />,
+  DollarSign: <DollarSign />,
+  Heart: <Heart />,
+  BrainCircuit: <BrainCircuit />,
+};
+
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Habit name must be at least 2 characters.' }),
   description: z.string().optional(),
+  icon: z.string().default('BrainCircuit'),
   points: z.coerce.number().min(0, { message: 'Points must be a positive number.' }).default(10),
   penalty: z.coerce.number().min(0, { message: 'Penalty must be a positive number.' }).default(0),
 });
@@ -37,6 +60,7 @@ export default function AddHabitDialog({ open, onOpenChange, onHabitAdd }: AddHa
     defaultValues: {
       name: '',
       description: '',
+      icon: 'BrainCircuit',
       points: 10,
       penalty: 0,
     },
@@ -60,6 +84,33 @@ export default function AddHabitDialog({ open, onOpenChange, onHabitAdd }: AddHa
             </DialogHeader>
 
             <div className="space-y-4">
+               <FormField
+                control={form.control}
+                name="icon"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Icon</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an icon" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.entries(habitIcons).map(([name, icon]) => (
+                            <SelectItem key={name} value={name}>
+                                <div className="flex items-center gap-2">
+                                    {React.cloneElement(icon, { className: "h-4 w-4"})}
+                                    <span>{name}</span>
+                                </div>
+                            </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="name"

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -15,6 +16,9 @@ import {
   deleteDoc,
   setDoc,
   getDoc,
+  arrayUnion,
+  arrayRemove,
+  Timestamp,
 } from 'firebase/firestore';
 
 
@@ -33,23 +37,25 @@ export function useHabits() {
       return;
     }
 
-    const habitsRef = collection(db, 'users', user.uid, 'habits');
-    const unsubscribeHabits = onSnapshot(query(habitsRef), (snapshot) => {
+    const habitsQuery = query(collection(db, 'users', user.uid, 'habits'));
+    const unsubscribeHabits = onSnapshot(habitsQuery, (snapshot) => {
       const serverHabits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit));
       setHabits(serverHabits);
       setIsLoaded(true);
     });
 
-    const logsRef = collection(db, 'users', user.uid, 'logs');
-    const unsubscribeLogs = onSnapshot(query(logsRef), (snapshot) => {
+    const logsQuery = query(collection(db, 'users', user.uid, 'logs'));
+    const unsubscribeLogs = onSnapshot(logsQuery, (snapshot) => {
       const serverLogs = snapshot.docs.map(doc => doc.data() as HabitLog);
       setLogs(serverLogs);
     });
     
     const settingsRef = doc(db, 'users', user.uid, 'settings', 'general');
     const unsubscribeSettings = onSnapshot(settingsRef, (doc) => {
-        if (doc.exists()) {
-            setMonthlyTarget(doc.data().monthlyTarget || 1000);
+        if (doc.exists() && doc.data().monthlyTarget) {
+            setMonthlyTarget(doc.data().monthlyTarget);
+        } else {
+            setMonthlyTarget(1000);
         }
     });
 
@@ -80,8 +86,6 @@ export function useHabits() {
     if (!user) return;
     const habitRef = doc(db, 'users', user.uid, 'habits', habitId);
     await deleteDoc(habitRef);
-    // Firestore security rules should handle cleaning up logs, or a cloud function.
-    // For client-side, we'll just let the onSnapshot update the state.
   }, [user]);
 
   const toggleHabit = useCallback(async (habitId: string) => {
@@ -89,23 +93,27 @@ export function useHabits() {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const logRef = doc(db, 'users', user.uid, 'logs', todayStr);
     
-    const logDoc = await getDoc(logRef);
-    let currentCompleted: CompletedHabit[] = [];
+    try {
+        const logDoc = await getDoc(logRef);
+        let completedHabits: CompletedHabit[] = [];
+        if (logDoc.exists()) {
+            completedHabits = logDoc.data().completedHabits || [];
+        }
 
-    if (logDoc.exists()) {
-      currentCompleted = logDoc.data().completedHabits || [];
+        const habitIndex = completedHabits.findIndex(h => h.habitId === habitId);
+
+        if (habitIndex > -1) {
+            // Habit exists, so remove it
+             const habitToRemove = completedHabits[habitIndex];
+             await setDoc(logRef, { completedHabits: arrayRemove(habitToRemove) }, { merge: true });
+        } else {
+            // Habit does not exist, so add it
+            const newCompletedHabit = { habitId, completedAt: Timestamp.now().toDate().toISOString() };
+            await setDoc(logRef, { date: todayStr, completedHabits: arrayUnion(newCompletedHabit) }, { merge: true });
+        }
+    } catch (error) {
+        console.error("Error toggling habit: ", error);
     }
-
-    const completedIndex = currentCompleted.findIndex(c => c.habitId === habitId);
-
-    if (completedIndex > -1) {
-      currentCompleted.splice(completedIndex, 1);
-    } else {
-      currentCompleted.push({ habitId, completedAt: new Date().toISOString() });
-    }
-
-    await setDoc(logRef, { date: todayStr, completedHabits: currentCompleted }, { merge: true });
-
   }, [user]);
   
   const updateMonthlyTarget = useCallback(async (newTarget: number) => {

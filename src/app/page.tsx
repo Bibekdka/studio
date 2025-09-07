@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -53,9 +54,13 @@ export default function DashboardPage() {
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const monthlyLogs = logs.filter(log => {
-    const logDate = new Date(log.date);
-    // Adjusting for timezone differences by comparing year and month.
-    return getYear(logDate) === getYear(currentDate) && getMonth(logDate) === getMonth(currentDate);
+    try {
+        const logDate = parseISO(log.date);
+        return getYear(logDate) === getYear(currentDate) && getMonth(logDate) === getMonth(currentDate);
+    } catch(e) {
+        // handle invalid date format in logs
+        return false;
+    }
   });
   
   const calculateScoreForDay = React.useCallback((completedHabitIds: string[]) => {
@@ -128,7 +133,7 @@ export default function DashboardPage() {
               <CalendarCheck className="h-5 w-5 text-primary" />
               {format(currentDate, 'MMMM yyyy')} Progress
             </CardTitle>
-            <CardDescription>You've earned <span className="font-bold text-green-600">{monthlyScore}</span> points towards your goal of <span className="font-bold text-green-600">{monthlyTarget}</span>.</CardDescription>
+            <CardDescription>You've earned <span className="font-bold text-primary">{monthlyScore}</span> points towards your goal of <span className="font-bold text-primary">{monthlyTarget}</span>.</CardDescription>
           </CardHeader>
           <CardContent>
             <Progress value={monthlyProgress} className="w-full" />
@@ -209,17 +214,23 @@ export default function DashboardPage() {
                     {daysInMonth.map(day => {
                         const dayString = format(day, 'yyyy-MM-dd');
                         const log = logs.find(l => l.date === dayString);
-                        const score = log ? calculateScoreForDay(log.completedHabits.map(c => c.habitId)) : isToday(day) || day > new Date() ? 0 : -habits.reduce((sum, h) => sum + h.penalty, 0);
+                        const isFuture = day > new Date() && !isToday(day);
+                        let score = 0;
+                        if (log) {
+                            score = calculateScoreForDay(log.completedHabits.map(c => c.habitId));
+                        } else if (!isFuture) {
+                            score = -habits.reduce((sum, h) => sum + h.penalty, 0);
+                        }
 
                         return (
                             <div key={dayString} className="flex items-center justify-between rounded-lg border p-3">
                                <div>
                                     <p className="font-semibold">{format(day, 'MMMM d, EEE')}</p>
                                     <p className="text-sm text-muted-foreground">
-                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : 'No entries'}
+                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : (isFuture ? 'Upcoming' : 'No entries')}
                                     </p>
                                </div>
-                                <div className={`font-bold text-lg ${score > 0 ? 'text-green-600' : score < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>{score} pts</div>
+                                <div className={`font-bold text-lg ${score > 0 ? 'text-primary' : score < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{score !== 0 || !isFuture ? `${score} pts` : ''}</div>
                             </div>
                         )
                     })}
