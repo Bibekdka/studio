@@ -3,140 +3,117 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Habit, HabitLog, CompletedHabit } from '@/lib/types';
 import { format } from 'date-fns';
+import { useAuth } from '@/components/auth-provider';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  doc,
+  writeBatch,
+  query,
+  getDocs,
+  onSnapshot,
+  deleteDoc,
+  setDoc,
+  getDoc,
+} from 'firebase/firestore';
 
-const HABITS_STORAGE_KEY = 'habit-journey-habits';
-const LOGS_STORAGE_KEY = 'habit-journey-logs';
-const TARGET_STORAGE_KEY = 'habit-journey-target';
-
-const getInitialHabits = (): Habit[] => {
-  return [];
-};
 
 export function useHabits() {
+  const { user } = useAuth();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<HabitLog[]>([]);
   const [monthlyTarget, setMonthlyTarget] = useState<number>(1000);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    try {
-      const storedHabits = localStorage.getItem(HABITS_STORAGE_KEY);
-      const storedLogs = localStorage.getItem(LOGS_STORAGE_KEY);
-      const storedTarget = localStorage.getItem(TARGET_STORAGE_KEY);
-
-      if (storedHabits) {
-        const parsedHabits = JSON.parse(storedHabits).map((h: Habit) => ({ penalty: 0, ...h }));
-        setHabits(parsedHabits);
-      } else {
-        setHabits(getInitialHabits());
-      }
-
-      if (storedLogs) {
-        // Migration for logs from string[] to object[]
-        const parsedLogs: HabitLog[] = JSON.parse(storedLogs).map((log: any) => {
-            if (log.completedHabits.length > 0 && typeof log.completedHabits[0] === 'string') {
-                return {
-                    ...log,
-                    completedHabits: log.completedHabits.map((habitId: string) => ({ habitId, completedAt: new Date().toISOString() }))
-                };
-            }
-            return log;
-        });
-        setLogs(parsedLogs);
-      }
-      if (storedTarget) {
-        setMonthlyTarget(JSON.parse(storedTarget));
-      }
-
-    } catch (error) {
-      console.error("Failed to load data from localStorage", error);
-      setHabits(getInitialHabits());
+    if (!user) {
+      setHabits([]);
       setLogs([]);
-      setMonthlyTarget(1000);
+      setIsLoaded(true);
+      return;
     }
-    setIsLoaded(true);
-  }, []);
 
-  useEffect(() => {
-    if (isLoaded) {
-      try {
-        localStorage.setItem(HABITS_STORAGE_KEY, JSON.stringify(habits));
-      } catch (error) {
-        console.error("Failed to save habits to localStorage", error);
-      }
-    }
-  }, [habits, isLoaded]);
+    const habitsRef = collection(db, 'users', user.uid, 'habits');
+    const unsubscribeHabits = onSnapshot(query(habitsRef), (snapshot) => {
+      const serverHabits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit));
+      setHabits(serverHabits);
+      setIsLoaded(true);
+    });
 
-  useEffect(() => {
-    if (isLoaded) {
-      try {
-        localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs));
-      } catch (error) {
-        console.error("Failed to save logs to localStorage", error);
-      }
-    }
-  }, [logs, isLoaded]);
+    const logsRef = collection(db, 'users', user.uid, 'logs');
+    const unsubscribeLogs = onSnapshot(query(logsRef), (snapshot) => {
+      const serverLogs = snapshot.docs.map(doc => doc.data() as HabitLog);
+      setLogs(serverLogs);
+    });
+    
+    const settingsRef = doc(db, 'users', user.uid, 'settings', 'general');
+    const unsubscribeSettings = onSnapshot(settingsRef, (doc) => {
+        if (doc.exists()) {
+            setMonthlyTarget(doc.data().monthlyTarget || 1000);
+        }
+    });
 
-  useEffect(() => {
-    if (isLoaded) {
-      try {
-        localStorage.setItem(TARGET_STORAGE_KEY, JSON.stringify(monthlyTarget));
-      } catch (error) {
-        console.error("Failed to save monthly target to localStorage", error);
-      }
-    }
-  }, [monthlyTarget, isLoaded]);
+    return () => {
+      unsubscribeHabits();
+      unsubscribeLogs();
+      unsubscribeSettings();
+    };
+  }, [user]);
 
-  const addHabit = useCallback((habitData: Omit<Habit, 'id'>) => {
+  const addHabit = useCallback(async (habitData: Omit<Habit, 'id'>) => {
+    if (!user) return;
+    const newDocRef = doc(collection(db, 'users', user.uid, 'habits'));
     const newHabit: Habit = {
       ...habitData,
-      id: new Date().toISOString(),
+      id: newDocRef.id,
     };
-    setHabits(prevHabits => [...prevHabits, newHabit]);
-  }, []);
+    await setDoc(newDocRef, newHabit);
+  }, [user]);
 
-  const editHabit = useCallback((updatedHabit: Habit) => {
-    setHabits(prevHabits => 
-      prevHabits.map(habit => 
-        habit.id === updatedHabit.id ? updatedHabit : habit
-      )
-    );
-  }, []);
+  const editHabit = useCallback(async (updatedHabit: Habit) => {
+    if (!user) return;
+    const habitRef = doc(db, 'users', user.uid, 'habits', updatedHabit.id);
+    await setDoc(habitRef, updatedHabit, { merge: true });
+  }, [user]);
 
-  const deleteHabit = useCallback((habitId: string) => {
-    setHabits(prevHabits => prevHabits.filter(habit => habit.id !== habitId));
-    // Also remove from logs
-    setLogs(prevLogs => 
-        prevLogs.map(log => ({
-            ...log,
-            completedHabits: log.completedHabits.filter(c => c.habitId !== habitId)
-        }))
-    );
-  }, []);
+  const deleteHabit = useCallback(async (habitId: string) => {
+    if (!user) return;
+    const habitRef = doc(db, 'users', user.uid, 'habits', habitId);
+    await deleteDoc(habitRef);
+    // Firestore security rules should handle cleaning up logs, or a cloud function.
+    // For client-side, we'll just let the onSnapshot update the state.
+  }, [user]);
 
-  const toggleHabit = useCallback((habitId: string) => {
+  const toggleHabit = useCallback(async (habitId: string) => {
+    if (!user) return;
     const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const logRef = doc(db, 'users', user.uid, 'logs', todayStr);
     
-    setLogs(prevLogs => {
-      const newLogs = [...prevLogs];
-      const todayLogIndex = newLogs.findIndex(log => log.date === todayStr);
+    const logDoc = await getDoc(logRef);
+    let currentCompleted: CompletedHabit[] = [];
 
-      if (todayLogIndex > -1) {
-        const todayLog = { ...newLogs[todayLogIndex] };
-        const completedIndex = todayLog.completedHabits.findIndex(c => c.habitId === habitId);
+    if (logDoc.exists()) {
+      currentCompleted = logDoc.data().completedHabits || [];
+    }
 
-        if (completedIndex > -1) {
-          todayLog.completedHabits.splice(completedIndex, 1);
-        } else {
-          todayLog.completedHabits.push({ habitId, completedAt: new Date().toISOString() });
-        }
-        newLogs[todayLogIndex] = todayLog;
-      } else {
-        newLogs.push({ date: todayStr, completedHabits: [{ habitId, completedAt: new Date().toISOString() }] });
-      }
-      return newLogs;
-    });
-  }, []);
+    const completedIndex = currentCompleted.findIndex(c => c.habitId === habitId);
 
-  return { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget, isLoaded };
+    if (completedIndex > -1) {
+      currentCompleted.splice(completedIndex, 1);
+    } else {
+      currentCompleted.push({ habitId, completedAt: new Date().toISOString() });
+    }
+
+    await setDoc(logRef, { date: todayStr, completedHabits: currentCompleted }, { merge: true });
+
+  }, [user]);
+  
+  const updateMonthlyTarget = useCallback(async (newTarget: number) => {
+      if (!user) return;
+      const settingsRef = doc(db, 'users', user.uid, 'settings', 'general');
+      await setDoc(settingsRef, { monthlyTarget: newTarget }, { merge: true });
+  }, [user]);
+
+
+  return { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget: updateMonthlyTarget, isLoaded };
 }

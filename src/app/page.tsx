@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, Settings, Clock } from 'lucide-react';
+import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, Clock, LogOut } from 'lucide-react';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
@@ -20,18 +20,29 @@ import { Progress } from '@/components/ui/progress';
 import MilestoneDialog from '@/components/milestone-dialog';
 import type { Habit, CompletedHabit } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/components/auth-provider';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget } = useHabits();
+  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, isLoaded } = useHabits();
   const [isAddDialogOpen, setAddDialogOpen] = React.useState(false);
   const [isMilestoneOpen, setMilestoneOpen] = React.useState(false);
   const [milestone, setMilestone] = React.useState<number | null>(null);
   const { toast } = useToast();
 
+  const { user, signOut } = useAuth();
+  const router = useRouter();
+
   const [habitToEdit, setHabitToEdit] = React.useState<Habit | null>(null);
   const [habitToDelete, setHabitToDelete] = React.useState<Habit | null>(null);
 
   const [currentDate, setCurrentDate] = React.useState(new Date());
+
+  React.useEffect(() => {
+    if (isLoaded && !user) {
+      router.push('/login');
+    }
+  }, [user, isLoaded, router]);
   
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayLog = logs.find(log => log.date === today);
@@ -56,17 +67,16 @@ export default function DashboardPage() {
       if (completedIds.includes(habit.id)) {
         score += habit.points;
       } else {
-        // Apply penalty only if the day for the log is not today
         const logForHabit = logs.find(log => log.completedHabits === completedHabits);
         if (logForHabit && !isToday(parseISO(logForHabit.date + 'T00:00:00'))) {
              score -= habit.penalty;
-        } else if (!logForHabit) { // Penalize past days with no entries
+        } else if (!logForHabit && isLoaded) { // Penalize past days with no entries
              score -= habit.penalty;
         }
       }
     });
     return score;
-  }, [habits, logs]);
+  }, [habits, logs, isLoaded]);
 
 
   const monthlyScore = monthlyLogs.reduce((total, log) => {
@@ -93,17 +103,33 @@ export default function DashboardPage() {
     setCurrentDate(new Date());
   }, []);
 
+  if (!user || !isLoaded) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-muted-foreground">Loading your journey...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-gradient-to-br from-background to-secondary/30">
       <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 md:p-8">
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="font-headline text-3xl font-bold tracking-tight">Habit Journey</h1>
-            <p className="text-muted-foreground">Your path to a more consistent and productive you.</p>
+            <p className="text-muted-foreground">Welcome back, {user.displayName || 'friend'}!</p>
           </div>
-          <Button onClick={() => setAddDialogOpen(true)} className="w-full sm:w-auto">
-            <Plus className="mr-2 h-4 w-4" /> Add New Habit
-          </Button>
+          <div className="flex w-full sm:w-auto items-center gap-2">
+            <Button onClick={() => setAddDialogOpen(true)} className="w-full flex-grow sm:w-auto">
+              <Plus className="mr-2 h-4 w-4" /> Add New Habit
+            </Button>
+            <Button variant="outline" size="icon" onClick={signOut}>
+                <LogOut className="h-4 w-4" />
+                <span className="sr-only">Sign Out</span>
+            </Button>
+          </div>
         </header>
 
         {habits.length > 0 && <MotivationalQuote habits={habits} />}
@@ -195,7 +221,7 @@ export default function DashboardPage() {
                     {daysInMonth.map(day => {
                         const dayString = format(day, 'yyyy-MM-dd');
                         const log = logs.find(l => l.date === dayString);
-                        const score = log ? calculateScoreForDay(log.completedHabits) : -habits.reduce((sum, h) => sum + h.penalty, 0);
+                        const score = log ? calculateScoreForDay(log.completedHabits) : (isToday(day) || day > new Date()) ? 0 : -habits.reduce((sum, h) => sum + h.penalty, 0);
                         const completedHabitDetails = log ? log.completedHabits.map(ch => {
                             const habit = habits.find(h => h.id === ch.habitId);
                             return {
