@@ -3,7 +3,6 @@
 
 import * as React from 'react';
 import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, LogOut, LogIn, Target } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getYear, getMonth, parseISO, isToday, isFuture } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,6 @@ import MilestoneDialog from '@/components/milestone-dialog';
 export default function DashboardPage() {
   const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, loading: habitsLoading } = useHabits();
-  const router = useRouter();
   const { toast } = useToast();
 
   const [isAddDialogOpen, setAddDialogOpen] = React.useState(false);
@@ -76,6 +74,7 @@ export default function DashboardPage() {
   const monthlyProgress = monthlyTarget > 0 ? (monthlyScore / monthlyTarget) * 100 : 0;
 
   React.useEffect(() => {
+    if (habitsLoading) return;
     const milestones = [100, 250, 500, 1000, 2000, 5000];
     const scoreToday = calculateScoreForDay(todaysCompletedHabitIds, habits);
     const previousScore = monthlyScore - scoreToday;
@@ -87,7 +86,7 @@ export default function DashboardPage() {
         break;
       }
     }
-  }, [monthlyScore, todaysCompletedHabitIds, habits, calculateScoreForDay]);
+  }, [monthlyScore, todaysCompletedHabitIds, habits, calculateScoreForDay, habitsLoading]);
 
   if (authLoading || habitsLoading) {
     return (
