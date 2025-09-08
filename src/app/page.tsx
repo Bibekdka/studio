@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, LogOut, LogIn, Target } from 'lucide-react';
+import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, LogOut, LogIn, Target, Settings } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getYear, getMonth, parseISO, isToday, isFuture } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
@@ -21,14 +21,17 @@ import MotivationalQuote from '@/components/motivational-quote';
 import ProductivityScore from '@/components/productivity-score';
 import ProgressChart from '@/components/progress-chart';
 import MilestoneDialog from '@/components/milestone-dialog';
+import SettingsDialog from '@/components/settings-dialog';
+
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
-  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, loading: habitsLoading } = useHabits();
+  const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget, loading: habitsLoading } = useHabits();
   const { toast } = useToast();
 
   const [isAddDialogOpen, setAddDialogOpen] = React.useState(false);
   const [isMilestoneOpen, setMilestoneOpen] = React.useState(false);
+  const [isSettingsOpen, setSettingsOpen] = React.useState(false);
   const [milestone, setMilestone] = React.useState<number | null>(null);
   const [habitToEdit, setHabitToEdit] = React.useState<Habit | null>(null);
   const [habitToDelete, setHabitToDelete] = React.useState<Habit | null>(null);
@@ -36,6 +39,7 @@ export default function DashboardPage() {
   const [currentDate] = React.useState(new Date());
 
   const calculateScoreForDay = React.useCallback((completedHabitIds: string[], targetHabits: Habit[]) => {
+    if (targetHabits.length === 0) return 0;
     let score = 0;
     targetHabits.forEach(habit => {
       if (completedHabitIds.includes(habit.id)) {
@@ -50,6 +54,8 @@ export default function DashboardPage() {
   const { monthlyScore, todaysCompletedHabitIds } = React.useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
     let todaysCompletedHabitIds: string[] = [];
+
+    if (habits.length === 0) return { monthlyScore: 0, todaysCompletedHabitIds: [] };
 
     const monthlyLogs = logs.filter(log => {
       try {
@@ -74,7 +80,7 @@ export default function DashboardPage() {
   const monthlyProgress = monthlyTarget > 0 ? (monthlyScore / monthlyTarget) * 100 : 0;
 
   React.useEffect(() => {
-    if (habitsLoading) return;
+    if (habitsLoading || habits.length === 0) return;
     const milestones = [100, 250, 500, 1000, 2000, 5000];
     const scoreToday = calculateScoreForDay(todaysCompletedHabitIds, habits);
     const previousScore = monthlyScore - scoreToday;
@@ -88,11 +94,12 @@ export default function DashboardPage() {
     }
   }, [monthlyScore, todaysCompletedHabitIds, habits, calculateScoreForDay, habitsLoading]);
 
-  if (authLoading || habitsLoading) {
+  if (authLoading || (user && habitsLoading)) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-screen w-full items-center justify-center bg-muted/40">
         <div className="text-center">
-          <p className="text-lg text-muted-foreground">Loading your journey...</p>
+          <Target className="mx-auto h-12 w-12 animate-pulse text-primary/70" />
+          <p className="text-lg text-muted-foreground mt-4">Loading your journey...</p>
         </div>
       </div>
     );
@@ -145,10 +152,16 @@ export default function DashboardPage() {
             <MotivationalQuote habits={habits} />
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarCheck className="h-5 w-5 text-primary" />
-                  {format(currentDate, 'MMMM yyyy')} Progress
-                </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <CalendarCheck className="h-5 w-5 text-primary" />
+                      {format(currentDate, 'MMMM yyyy')} Progress
+                    </CardTitle>
+                    <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}>
+                        <Settings className="h-5 w-5" />
+                        <span className="sr-only">Settings</span>
+                    </Button>
+                  </div>
                 <CardDescription>You've earned <span className="font-bold text-primary">{monthlyScore}</span> points towards your goal of <span className="font-bold text-primary">{monthlyTarget}</span>.</CardDescription>
               </CardHeader>
               <CardContent>
@@ -270,12 +283,14 @@ export default function DashboardPage() {
             </Tabs>
           </>
         ) : (
-          <Card className="flex flex-col items-center justify-center py-20 text-center">
-             <CardHeader>
-                <Target className="mx-auto h-16 w-16 text-primary/70" />
-                <CardTitle className="mt-4 text-2xl font-bold">Start Your Journey</CardTitle>
-                <CardDescription>
-                  Welcome to Habit Journey! Add your first habit to begin tracking your progress and building a better you.
+          <Card className="flex flex-col items-center justify-center py-20 text-center border-dashed shadow-none">
+             <CardHeader className="p-6">
+                <div className="flex items-center justify-center h-20 w-20 rounded-full bg-primary/10 mx-auto">
+                    <Target className="h-12 w-12 text-primary" />
+                </div>
+                <CardTitle className="mt-6 text-2xl font-bold">Start Your Habit Journey</CardTitle>
+                <CardDescription className="mt-2 max-w-sm mx-auto">
+                  Welcome! The first step to building great habits is tracking them. Add your first habit to begin your journey.
                 </CardDescription>
              </CardHeader>
              <CardContent>
@@ -331,6 +346,18 @@ export default function DashboardPage() {
           }}
         />
       )}
+       <SettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setSettingsOpen}
+        monthlyTarget={monthlyTarget}
+        onTargetSave={(newTarget) => {
+            setMonthlyTarget(newTarget);
+            toast({
+                title: "Settings Saved",
+                description: "Your monthly target has been updated."
+            })
+        }}
+      />
       {milestone && (
          <MilestoneDialog 
             open={isMilestoneOpen} 
