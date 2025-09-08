@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, LogOut } from 'lucide-react';
+import { Plus, CheckCircle, Trophy, BarChart3, History, CalendarCheck, Star, LogOut, LogIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getYear, getMonth, parseISO, isToday, isFuture } from 'date-fns';
 
@@ -24,7 +24,7 @@ import ProgressChart from '@/components/progress-chart';
 import MilestoneDialog from '@/components/milestone-dialog';
 
 export default function DashboardPage() {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, loading: habitsLoading } = useHabits();
   const router = useRouter();
   const { toast } = useToast();
@@ -37,12 +37,6 @@ export default function DashboardPage() {
 
   const [currentDate] = React.useState(new Date());
 
-  React.useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
-
   const calculateScoreForDay = React.useCallback((completedHabitIds: string[]) => {
     let score = 0;
     habits.forEach(habit => {
@@ -52,7 +46,7 @@ export default function DashboardPage() {
         score -= habit.penalty;
       }
     });
-    return score;
+    return Math.max(0, score); // Ensure score doesn't go negative for this calculation
   }, [habits]);
 
   const { monthlyScore, todaysCompletedHabitIds } = React.useMemo(() => {
@@ -94,7 +88,7 @@ export default function DashboardPage() {
     }
   }, [monthlyScore, todaysCompletedHabitIds, calculateScoreForDay]);
 
-  if (authLoading || habitsLoading || !user) {
+  if (authLoading || habitsLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="text-center">
@@ -107,21 +101,38 @@ export default function DashboardPage() {
   const daysInMonth = eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) });
   const todayLog = logs.find(log => log.date === format(new Date(), 'yyyy-MM-dd'));
 
+  const handleAuthAction = () => {
+    if (user) {
+      signOut();
+    } else {
+      signInWithGoogle().catch(err => {
+        console.error("Sign in failed:", err);
+        toast({
+            title: "Sign In Failed",
+            description: "Could not sign you in. Please try again.",
+            variant: "destructive"
+        })
+      });
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
       <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 md:p-8">
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="font-headline text-3xl font-bold tracking-tight">Habit Journey</h1>
-            <p className="text-muted-foreground">Welcome back, {user.displayName || 'friend'}!</p>
+            <p className="text-muted-foreground">
+              {user ? `Welcome back, ${user.displayName || 'friend'}!` : 'Track your habits, build your future.'}
+            </p>
           </div>
           <div className="flex w-full sm:w-auto items-center gap-2">
             <Button onClick={() => setAddDialogOpen(true)} className="w-full flex-grow sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Add New Habit
             </Button>
-            <Button variant="outline" size="icon" onClick={signOut}>
-                <LogOut className="h-4 w-4" />
-                <span className="sr-only">Sign Out</span>
+            <Button variant="outline" size="icon" onClick={handleAuthAction}>
+                {user ? <LogOut className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
+                <span className="sr-only">{user ? 'Sign Out' : 'Sign In'}</span>
             </Button>
           </div>
         </header>
@@ -230,19 +241,20 @@ export default function DashboardPage() {
                         let score = 0;
                         if (log) {
                             score = calculateScoreForDay(log.completedHabits.map(c => c.habitId));
-                        } else if (habits.length > 0) {
+                        } else if (!isFuture(day) && habits.length > 0) {
                             score = -habits.reduce((sum, h) => sum + h.penalty, 0);
                         }
 
+
                         return (
-                            <div key={dayString} className="flex items-center justify-between rounded-lg border p-3">
+                            <div key={dayString} className={`flex items-center justify-between rounded-lg border p-3 ${isToday(day) ? 'bg-primary/5' : ''}`}>
                                <div>
                                     <p className="font-semibold">{format(day, 'MMMM d, EEE')}</p>
                                     <p className="text-sm text-muted-foreground">
-                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : (habits.length > 0 ? `0 of ${habits.length} habits completed` : 'No entries')}
+                                        {log ? `${log.completedHabits.length} of ${habits.length} habits completed` : (habits.length > 0 && !isFuture(day) ? `0 of ${habits.length} habits completed` : 'No entries')}
                                     </p>
                                </div>
-                                <div className={`font-bold text-lg ${score > 0 ? 'text-primary' : score < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{score !== 0 ? `${score} pts` : (habits.length > 0 ? '0 pts' : '')}</div>
+                                <div className={`font-bold text-lg ${score > 0 ? 'text-primary' : score < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{score !== 0 ? `${score} pts` : (habits.length > 0 && !isFuture(day) ? '0 pts' : '')}</div>
                             </div>
                         )
                     })}
@@ -284,6 +296,7 @@ export default function DashboardPage() {
           onOpenChange={(isOpen) => !isOpen && setHabitToDelete(null)}
           habit={habitToDelete}
           onConfirmDelete={() => {
+            if (!habitToDelete) return;
             toast({
               title: "Habit Deleted",
               description: `The habit "${habitToDelete.name}" has been removed.`,
