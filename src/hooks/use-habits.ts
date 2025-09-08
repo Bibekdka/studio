@@ -32,9 +32,8 @@ export function useHabits() {
   const [monthlyTarget, setMonthlyTarget] = useState<number>(1000);
   const [loading, setLoading] = useState(true);
 
-  // --- Data migration ---
   const migrateLocalDataToFirestore = useCallback(async (userId: string) => {
-    console.log("Starting data migration from local storage to Firestore...");
+    console.log("Checking for local data to migrate to Firestore...");
     setLoading(true);
     try {
         const localHabitsJSON = localStorage.getItem(LOCAL_STORAGE_KEYS.habits);
@@ -52,28 +51,24 @@ export function useHabits() {
 
         const batch = writeBatch(db);
 
-        // Migrate habits
         const habitsCollectionRef = collection(db, 'users', userId, 'habits');
         localHabits.forEach(habit => {
             const habitRef = doc(habitsCollectionRef, habit.id);
             batch.set(habitRef, habit);
         });
 
-        // Migrate logs
         const logsCollectionRef = collection(db, 'users', userId, 'logs');
         localLogs.forEach(log => {
             const logRef = doc(logsCollectionRef, log.date);
             batch.set(logRef, log);
         });
         
-        // Migrate target
         const settingsRef = doc(db, 'users', userId, 'settings', 'general');
         batch.set(settingsRef, { monthlyTarget: localTarget }, { merge: true });
 
         await batch.commit();
         console.log("Data migration successful!");
 
-        // Clear local storage after successful migration
         localStorage.removeItem(LOCAL_STORAGE_KEYS.habits);
         localStorage.removeItem(LOCAL_STORAGE_KEYS.logs);
         localStorage.removeItem(LOCAL_STORAGE_KEYS.target);
@@ -81,38 +76,20 @@ export function useHabits() {
     } catch (error) {
         console.error("Error migrating data:", error);
     } finally {
+        // Firestore listeners will handle setting the state
         setLoading(false);
     }
   }, []);
 
-  // Effect to trigger migration when user signs in
   useEffect(() => {
-    if (user) {
+    if (user?.uid) {
       migrateLocalDataToFirestore(user.uid);
     }
-  }, [user, migrateLocalDataToFirestore]);
+  }, [user?.uid, migrateLocalDataToFirestore]);
 
-  // --- Local Storage Management ---
-  const getLocalHabits = useCallback(() => {
-    const savedHabits = localStorage.getItem(LOCAL_STORAGE_KEYS.habits);
-    return savedHabits ? JSON.parse(savedHabits) : [];
-  }, []);
-
-  const getLocalLogs = useCallback(() => {
-    const savedLogs = localStorage.getItem(LOCAL_STORAGE_KEYS.logs);
-    return savedLogs ? JSON.parse(savedLogs) : [];
-  }, []);
-  
-  const getLocalTarget = useCallback(() => {
-    const savedTarget = localStorage.getItem(LOCAL_STORAGE_KEYS.target);
-    return savedTarget ? JSON.parse(savedTarget) : 1000;
-  }, []);
-
-  // --- Main data loading effect ---
   useEffect(() => {
     setLoading(true);
     if (user) {
-        // User is logged in, use Firestore
         const habitsQuery = query(collection(db, 'users', user.uid, 'habits'));
         const unsubscribeHabits = onSnapshot(habitsQuery, (snapshot) => {
             setHabits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit)));
@@ -132,7 +109,7 @@ export function useHabits() {
             if (doc.exists() && doc.data().monthlyTarget) {
                 setMonthlyTarget(doc.data().monthlyTarget);
             } else {
-                setMonthlyTarget(1000); // Default value
+                setMonthlyTarget(1000);
             }
         });
 
@@ -142,17 +119,19 @@ export function useHabits() {
             unsubscribeSettings();
         };
     } else {
-        // User is not logged in, use local storage
-        setHabits(getLocalHabits());
-        setLogs(getLocalLogs());
-        setMonthlyTarget(getLocalTarget());
+        const localHabits = localStorage.getItem(LOCAL_STORAGE_KEYS.habits);
+        const localLogs = localStorage.getItem(LOCAL_STORAGE_KEYS.logs);
+        const localTarget = localStorage.getItem(LOCAL_STORAGE_KEYS.target);
+        
+        setHabits(localHabits ? JSON.parse(localHabits) : []);
+        setLogs(localLogs ? JSON.parse(localLogs) : []);
+        setMonthlyTarget(localTarget ? JSON.parse(localTarget) : 1000);
         setLoading(false);
     }
-  }, [user, getLocalHabits, getLocalLogs, getLocalTarget]);
+  }, [user]);
 
-  // --- Data manipulation functions ---
   const addHabit = useCallback(async (habitData: Omit<Habit, 'id'>) => {
-    const newId = doc(collection(db, 'users', 'placeholer', 'habits')).id;
+    const newId = doc(collection(db, 'users', 'placeholder', 'habits')).id;
     const newHabit: Habit = { ...habitData, id: newId };
 
     if (user) {
@@ -214,8 +193,15 @@ export function useHabits() {
         const logRef = doc(db, 'users', user.uid, 'logs', todayStr);
         const logDoc = await getDoc(logRef);
         const currentLog = logDoc.exists() ? logDoc.data() as HabitLog : { date: todayStr, completedHabits: [] };
-        const updatedLog = updateLogs([currentLog])[0];
-        await setDoc(logRef, updatedLog, { merge: true });
+        
+        const logIndex = currentLog.completedHabits.findIndex(h => h.habitId === habitId);
+        if (logIndex > -1) {
+            currentLog.completedHabits.splice(logIndex, 1);
+        } else {
+            currentLog.completedHabits.push(newCompletedHabit);
+        }
+        await setDoc(logRef, currentLog, { merge: true });
+
     } else {
         const updatedLogs = updateLogs(logs);
         setLogs(updatedLogs);
@@ -235,3 +221,5 @@ export function useHabits() {
 
   return { habits, logs, addHabit, editHabit, deleteHabit, toggleHabit, monthlyTarget, setMonthlyTarget: updateMonthlyTarget, loading };
 }
+
+    

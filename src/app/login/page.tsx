@@ -7,10 +7,12 @@ import { useAuth } from '@/components/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, Rocket } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const { user, loading, signInWithGoogle } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   React.useEffect(() => {
     if (!loading && user) {
@@ -19,16 +21,27 @@ export default function LoginPage() {
   }, [user, loading, router]);
 
   const features = [
-    'Track daily habits',
-    'Earn points and track streaks',
+    'Track daily habits and progress',
+    'Earn points and unlock milestones',
     'AI-powered motivational quotes',
-    'Sync across all your devices',
+    'Sync data seamlessly across devices',
     'Beautiful and simple interface',
   ];
 
+  const handleSignIn = () => {
+    signInWithGoogle().catch((error) => {
+      console.error("Sign-in error:", error);
+      toast({
+        title: "Sign In Failed",
+        description: "There was a problem signing in with Google. Please try again.",
+        variant: "destructive",
+      });
+    });
+  };
+
   if (loading || user) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="text-center">
           <p className="text-lg text-muted-foreground">Loading...</p>
         </div>
@@ -56,7 +69,7 @@ export default function LoginPage() {
             ))}
           </div>
           <Button
-            onClick={signInWithGoogle}
+            onClick={handleSignIn}
             disabled={loading}
             className="w-full text-lg h-12"
           >
@@ -74,3 +87,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
